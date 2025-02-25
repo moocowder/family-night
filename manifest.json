@@ -1,0 +1,9 @@
+{
+  "id": "com.mhdev.family-night",
+  "version": "1.0.0",
+  "name": "My Simple Add-on",
+  "description": "A test add-on for learning",
+  "resources": ["meta"],
+  "types": ["movie", "series"],
+  "idPrefixes": ["tt"]
+}
