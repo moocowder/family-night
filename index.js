@@ -27,6 +27,7 @@ app.get("/meta/:type/:id.json", (req, res) => {
     type: type,
     name: "Test Title",
     description: "This is a test description!",
+    parentalGuide: "xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   }
   res.json({ meta }) // Wrap in "meta" key
 })
