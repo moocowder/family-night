@@ -13,24 +13,24 @@ app.get("/manifest.json", (req, res) => {
     version: "1.0.0",
     name: "My Simple Add-on",
     description: "A test add-on for learning",
-    resources: ["meta"],
+    resources: ["stream"],
     types: ["movie", "series"],
     idPrefixes: ["tt"],
   }
   res.json(manifest)
 })
 
-app.get("/meta/:type/:id.json", (req, res) => {
-  const { type, id } = req.params // e.g., "movie" and "tt0111161"
-  const meta = {
-    id: id,
-    type: type,
-    name: "Test Title",
-    description: "This is a test description!",
-    parentalGuide: "xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  }
-  res.json({ meta }) // Wrap in "meta" key
-})
+// app.get("/meta/:type/:id.json", (req, res) => {
+//   const { type, id } = req.params // e.g., "movie" and "tt0111161"
+//   const meta = {
+//     id: id,
+//     type: type,
+//     name: "Test Title",
+//     description: "This is a test description!",
+//     parentalGuide: "xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+//   }
+//   res.json({ meta }) // Wrap in "meta" key
+// })
 
 app.get("/stream/:type/:id.json", async (req, res) => {
   const { type, id } = req.params // e.g., "movie" and "tt0111161"
