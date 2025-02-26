@@ -1,5 +1,6 @@
 const express = require("express")
 const app = express()
+const cheerio = require("cheerio")
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*")
@@ -23,16 +24,13 @@ app.get("/manifest.json", (req, res) => {
 app.get("/stream/:type/:id.json", async (req, res) => {
   const { type, id } = req.params // e.g., "movie" and "tt0111161"
 
-  // Fetch parental guide information
-  const parentalGuide = await fetchParentalGuide(id)
-
-  // Format the information
-  const formattedGuide = formatParentalGuideInfo(parentalGuide)
-
+  const html = await fetchIMDbParentalGuide(id)
+  const result = await parseParentalGuide(html)
+  const description = await formatParentalGuideInfo(result)
   const streams = [
     {
       name: "Parental Guide",
-      description: formatParentalGuideInfo(),
+      description,
       infoHash: id, // Not an actual infoHash, just an identifier
       behaviorHints: {
         notWebReady: true, // Signals this isn't an actual video stream
@@ -42,33 +40,96 @@ app.get("/stream/:type/:id.json", async (req, res) => {
       externalUrl: `https://www.imdb.com/title/${id}/parentalguide`,
       subtitles: [], // Required field but can be empty
       // The actual content goes here, can be HTML formatted
-      addon_message: formattedGuide,
+      // addon_message: formattedGuide,
     },
   ]
 
   res.json({ streams })
 })
 
-function fetchParentalGuide(id) {
-  return {
-    title: "title of guide",
+app.get("/test", async (req, res) => {
+  const html = await fetchIMDbParentalGuide("tt0111161")
+  const result = await parseParentalGuide(html)
+  const description = await formatParentalGuideInfo(result)
+  res.send(description)
+})
+
+async function fetchIMDbParentalGuide(imdbId) {
+  try {
+    const url = `https://www.imdb.com/title/${imdbId}/parentalguide`
+
+    console.log(url)
+    // Add a user agent to avoid being blocked
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+      },
+    })
+
+    // const t = await response.text()
+    // console.log(t)
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch data: ${response.status} ${response.statusText}`
+      )
+    }
+
+    return await response.text()
+  } catch (error) {
+    console.error("Error fetching IMDb parental guide:", error)
+    return null
   }
 }
 
-function formatParentalGuideInfo() {
-  // Format the guide data as HTML or rich text
-  return `
-    <h3>Parental Guide for</h3>\n\n
-    ️‍🔥<div style="padding: 10px; background: #f5f5f5; border-radius: 5px;">
-      <p><strong>Age Rating:</strong> age rating</p>\n
-     ️‍🔥<h4>Content Warnings:</h4>
-      <ul>
-             <li><strong> warning 1 </strong></li>
-             <li><strong> warning 2 </strong></li>
-             <li><strong> warning 3 </strong></li>
-      </ul>
-    </div>
-  `
+async function parseParentalGuide(html) {
+  const $ = cheerio.load(html)
+  // const $ = await fetchIMDbParentalGuide("tt0111161")
+  let result = {
+    mpaaRating: "",
+    categories: {},
+  }
+
+  // Extract MPAA rating
+  const mpaaRating = $(".ipc-metadata-list__item")
+    .first()
+    .find(".ipc-html-content-inner-div")
+    .text()
+    .trim()
+  result.mpaaRating = mpaaRating
+
+  console.log(result)
+  // Extract category ratings
+  $('[data-testid="rating-item"]').each((index, element) => {
+    const category = $(element)
+      .find(".ipc-metadata-list-item__label")
+      .text()
+      .trim()
+    const rating = $(element).find(".ipc-html-content-inner-div").text().trim()
+
+    console.log(rating)
+    // Remove the colon at the end of category names
+    const cleanCategory = category.replace(":", "")
+
+    result.categories[cleanCategory] = rating
+  })
+
+  return result
+}
+
+function formatParentalGuideInfo(result) {
+  let description = []
+
+  if (result.mpaaRating) {
+    description.push(`MPAA Rating: ${result.mpaaRating}`)
+  }
+
+  for (let category in result.categories) {
+    description.push(`${category}: ${result.categories[category]}`)
+  }
+
+  return description.join("\n")
 }
 
 app.listen(3000, () => console.log("Add-on running on http://localhost:3000"))
