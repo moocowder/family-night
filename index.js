@@ -39,7 +39,7 @@ app.get("/stream/:type/:id.json", async (req, res) => {
         bingeGroup: "parentalguide",
       },
       title: "View Parental Guide Information",
-      url: `https://www.imdb.com/title/${id}/parentalguide`,
+      externalUrl: `https://www.imdb.com/title/${id}/parentalguide`,
       subtitles: [], // Required field but can be empty
       // The actual content goes here, can be HTML formatted
       addon_message: formattedGuide,
@@ -58,10 +58,10 @@ function fetchParentalGuide(id) {
 function formatParentalGuideInfo() {
   // Format the guide data as HTML or rich text
   return `
-    <h3>Parental Guide for</h3>
-    <div style="padding: 10px; background: #f5f5f5; border-radius: 5px;">
-      <p><strong>Age Rating:</strong> age rating</p>
-      <h4>Content Warnings:</h4>
+    <h3>Parental Guide for</h3>\n\n
+    ️‍🔥<div style="padding: 10px; background: #f5f5f5; border-radius: 5px;">
+      <p><strong>Age Rating:</strong> age rating</p>\n
+     ️‍🔥<h4>Content Warnings:</h4>
       <ul>
              <li><strong> warning 1 </strong></li>
              <li><strong> warning 2 </strong></li>
