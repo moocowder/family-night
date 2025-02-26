@@ -11,7 +11,7 @@ app.get("/manifest.json", (req, res) => {
   const manifest = {
     id: "com.mhdev.family-night",
     version: "1.0.0",
-    name: "My Simple Add-on",
+    name: "Family Night",
     description: "A test add-on for learning",
     resources: ["stream"],
     types: ["movie", "series"],
@@ -19,18 +19,6 @@ app.get("/manifest.json", (req, res) => {
   }
   res.json(manifest)
 })
-
-// app.get("/meta/:type/:id.json", (req, res) => {
-//   const { type, id } = req.params // e.g., "movie" and "tt0111161"
-//   const meta = {
-//     id: id,
-//     type: type,
-//     name: "Test Title",
-//     description: "This is a test description!",
-//     parentalGuide: "xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-//   }
-//   res.json({ meta }) // Wrap in "meta" key
-// })
 
 app.get("/stream/:type/:id.json", async (req, res) => {
   const { type, id } = req.params // e.g., "movie" and "tt0111161"
@@ -44,13 +32,14 @@ app.get("/stream/:type/:id.json", async (req, res) => {
   const streams = [
     {
       name: "Parental Guide",
-      description: "Contains detailed content warnings and age recommendations",
+      description: formatParentalGuideInfo(),
       infoHash: id, // Not an actual infoHash, just an identifier
       behaviorHints: {
         notWebReady: true, // Signals this isn't an actual video stream
         bingeGroup: "parentalguide",
       },
       title: "View Parental Guide Information",
+      url: `https://www.imdb.com/title/${id}/parentalguide`,
       subtitles: [], // Required field but can be empty
       // The actual content goes here, can be HTML formatted
       addon_message: formattedGuide,
@@ -65,11 +54,11 @@ function fetchParentalGuide(id) {
     title: "title of guide",
   }
 }
-// Helper function to format the parental guide nicely
-function formatParentalGuideInfo(guideData) {
+
+function formatParentalGuideInfo() {
   // Format the guide data as HTML or rich text
   return `
-    <h3>Parental Guide for ${guideData.title}</h3>
+    <h3>Parental Guide for</h3>
     <div style="padding: 10px; background: #f5f5f5; border-radius: 5px;">
       <p><strong>Age Rating:</strong> age rating</p>
       <h4>Content Warnings:</h4>
