@@ -37,7 +37,7 @@ app.get("/stream/:type/:id.json", async (req, res) => {
          abcd\nefga,b,c,d,
          <h1>hello</h1>
          <strong>strong</strong>
-        `,,
+        `,
       infoHash: id, // Not an actual infoHash, just an identifier
       behaviorHints: {
         notWebReady: true, // Signals this isn't an actual video stream
@@ -59,7 +59,7 @@ app.get("/stream/:type/:id.json", async (req, res) => {
          <h1>hello</h1>
          <strong>strong</strong>
         `,
-      infoHash: '124325415', // Not an actual infoHash, just an identifier
+      infoHash: "124325415", // Not an actual infoHash, just an identifier
       behaviorHints: {
         notWebReady: true, // Signals this isn't an actual video stream
         bingeGroup: "parentalguide",
