@@ -11,7 +11,7 @@ app.use((req, res, next) => {
 app.get("/manifest.json", (req, res) => {
   const manifest = {
     id: "com.mhdev.family-night",
-    version: "1.2.0",
+    version: "1.3.0",
     name: "Family Night",
     description: "A test add-on for learning",
     resources: ["stream"],
@@ -30,7 +30,14 @@ app.get("/stream/:type/:id.json", async (req, res) => {
   const streams = [
     {
       name: "Parental Guide",
-      description,
+      description: `this, is a test \n to see how thing are being formatted in stremio.
+         1
+         2
+         3
+         abcd\nefga,b,c,d,
+         <h1>hello</h1>
+         <strong>strong</strong>
+        `,,
       infoHash: id, // Not an actual infoHash, just an identifier
       behaviorHints: {
         notWebReady: true, // Signals this isn't an actual video stream
@@ -52,7 +59,7 @@ app.get("/stream/:type/:id.json", async (req, res) => {
          <h1>hello</h1>
          <strong>strong</strong>
         `,
-      infoHash: id, // Not an actual infoHash, just an identifier
+      infoHash: '124325415', // Not an actual infoHash, just an identifier
       behaviorHints: {
         notWebReady: true, // Signals this isn't an actual video stream
         bingeGroup: "parentalguide",
