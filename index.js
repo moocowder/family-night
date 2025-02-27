@@ -11,7 +11,7 @@ app.use((req, res, next) => {
 app.get("/manifest.json", (req, res) => {
   const manifest = {
     id: "com.mhdev.family-night",
-    version: "1.0.0",
+    version: "1.2.0",
     name: "Family Night",
     description: "A test add-on for learning",
     resources: ["stream"],
@@ -37,6 +37,27 @@ app.get("/stream/:type/:id.json", async (req, res) => {
         bingeGroup: "parentalguide",
       },
       title: "View Parental Guide Information",
+      externalUrl: `https://www.imdb.com/title/${id}/parentalguide`,
+      subtitles: [], // Required field but can be empty
+      // The actual content goes here, can be HTML formatted
+      // addon_message: formattedGuide,
+    },
+    {
+      name: "formatting test",
+      description: `this, is a test \n to see how thing are being formatted in stremio.
+         1
+         2
+         3
+         abcd\nefga,b,c,d,
+         <h1>hello</h1>
+         <strong>strong</strong>
+        `,
+      infoHash: id, // Not an actual infoHash, just an identifier
+      behaviorHints: {
+        notWebReady: true, // Signals this isn't an actual video stream
+        bingeGroup: "parentalguide",
+      },
+      title: "do not view Parental Guide Information",
       externalUrl: `https://www.imdb.com/title/${id}/parentalguide`,
       subtitles: [], // Required field but can be empty
       // The actual content goes here, can be HTML formatted
@@ -120,13 +141,16 @@ async function parseParentalGuide(html) {
 
 function formatParentalGuideInfo(result) {
   let description = []
+  const colors = { None: "⚪️", Mild: "🟢", Moderate: "🟡", Severe: "🔴" }
 
   if (result.mpaaRating) {
-    description.push(`MPAA Rating: ${result.mpaaRating}`)
+    description.push(`${result.mpaaRating}`)
   }
 
+  let rating
   for (let category in result.categories) {
-    description.push(`${category}: ${result.categories[category]}`)
+    rating = result.categories[category]
+    description.push(`${colors[rating]} ${category}: ${rating}`)
   }
 
   return description.join("\n")
