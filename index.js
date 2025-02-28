@@ -4,21 +4,34 @@ const cheerio = require("cheerio")
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*")
-  res.header("Access-Control-Allow-Methods", "GET")
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept"
+  )
+  if (req.method === "OPTIONS") {
+    return res.status(200).end()
+  }
   next()
 })
 
 app.get("/manifest.json", (req, res) => {
-  const manifest = {
-    id: "com.mhdev.family-night",
-    version: "1.9.1",
-    name: "Family Night",
-    description: "A test add-on for learning",
-    resources: ["stream"],
-    types: ["movie", "series"],
-    idPrefixes: ["tt"],
+  console.log("******")
+  try {
+    const manifest = {
+      id: "com.mhdev.family-night",
+      version: "1.10.1",
+      name: "Family Night",
+      description: "A test add-on for learning",
+      resources: ["stream"],
+      types: ["movie", "series"],
+      idPrefixes: ["tt"],
+    }
+    res.json(manifest)
+  } catch (error) {
+    console.error("Error serving manifest:", error)
+    res.status(500).json({ error: "Failed to serve manifest" })
   }
-  res.json(manifest)
 })
 
 app.get("/stream/:type/:id.json", async (req, res) => {
@@ -29,7 +42,7 @@ app.get("/stream/:type/:id.json", async (req, res) => {
   const description = await formatParentalGuideInfo(result)
   const streams = [
     {
-      name: "Family night",
+      name: "Family Night",
       // description,
       // infoHash: id, // Not an actual infoHash, just an identifier
       // behaviorHints: {
@@ -42,27 +55,6 @@ app.get("/stream/:type/:id.json", async (req, res) => {
       // The actual content goes here, can be HTML formatted
       // addon_message: formattedGuide,
       // open: true,
-    },
-    {
-      name: "Parental Guide",
-      title: `this, is a test \n to see how thing are being formatted in stremio.
-         1
-         2
-         3
-         abcd\nefga,b, c,d,
-         <h1>hello</h1>
-         <strong>strong</strong>
-        `,
-      infoHash: id, // Not an actual infoHash, just an identifier
-      behaviorHints: {
-        notWebReady: true, // Signals this isn't an actual video stream
-        bingeGroup: "parentalguide",
-      },
-      // title: "View Parental Guide Information",
-      externalUrl: `https://www.imdb.com/title/${id}/parentalguide`,
-      subtitles: [], // Required field but can be empty
-      // The actual content goes here, can be HTML formatted
-      // addon_message: formattedGuide,
     },
   ]
 
@@ -157,4 +149,6 @@ function formatParentalGuideInfo(result) {
   return description.join("\n")
 }
 
-app.listen(3000, () => console.log("Add-on running on http://localhost:3000"))
+app.listen(3000, "0.0.0.0", () => {
+  console.log("Addon running on port 3000")
+})
