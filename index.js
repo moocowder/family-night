@@ -1,6 +1,29 @@
 const express = require("express")
+const rateLimit = require('express-rate-limit')
 const app = express()
 const cheerio = require("cheerio")
+
+/** @type {Object.<string, string>} */
+const SEVERITY_INDICATORS = {
+  None: "⚪️",
+  Mild: "🟢",
+  Moderate: "🟡",
+  Severe: "🔴"
+}
+
+const CONFIG = {
+  port: process.env.PORT || 3000,
+  host: process.env.HOST || "0.0.0.0",
+  userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+}
+
+// Rate limiting middleware
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+})
+
+app.use(limiter)
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*")
@@ -19,8 +42,8 @@ app.get("/manifest.json", (req, res) => {
   console.log("******")
   try {
     const manifest = {
-      id: "com.mhdev.family-night",
-      version: "1.10.1",
+      id: "com.moocowder.family-night",
+      version: "2.0.0",
       name: "Family Night",
       description: "A test add-on for learning",
       resources: ["stream"],
@@ -35,30 +58,33 @@ app.get("/manifest.json", (req, res) => {
 })
 
 app.get("/stream/:type/:id.json", async (req, res) => {
-  const { type, id } = req.params // e.g., "movie" and "tt0111161"
+  try {
+    const { type, id } = req.params
+    
+    // Validate IMDB ID format
+    if (!id.startsWith('tt') || id.length < 3) {
+      return res.status(400).json({ error: "Invalid IMDB ID format" })
+    }
 
-  const html = await fetchIMDbParentalGuide(id)
-  const result = await parseParentalGuide(html)
-  const description = await formatParentalGuideInfo(result)
-  const streams = [
-    {
+    const html = await fetchIMDbParentalGuide(id)
+    if (!html) {
+      return res.status(404).json({ error: "Failed to fetch parental guide" })
+    }
+
+    const result = await parseParentalGuide(html)
+    const description = await formatParentalGuideInfo(result)
+    
+    const streams = [{
       name: "Family Night",
-      // description,
-      // infoHash: id, // Not an actual infoHash, just an identifier
-      // behaviorHints: {
-      //   notWebReady: true, // Signals this isn't an actual video stream
-      //   bingeGroup: "parentalguide",
-      // },
       title: description,
       externalUrl: `https://www.imdb.com/title/${id}/parentalguide`,
-      // subtitles: [], // Required field but can be empty
-      // The actual content goes here, can be HTML formatted
-      // addon_message: formattedGuide,
-      // open: true,
-    },
-  ]
+    }]
 
-  res.json({ streams })
+    res.json({ streams })
+  } catch (error) {
+    console.error("Error processing stream request:", error)
+    res.status(500).json({ error: "Internal server error" })
+  }
 })
 
 app.get("/test", async (req, res) => {
@@ -71,23 +97,16 @@ app.get("/test", async (req, res) => {
 async function fetchIMDbParentalGuide(imdbId) {
   try {
     const url = `https://www.imdb.com/title/${imdbId}/parentalguide`
+    console.log(`Fetching: ${url}`)
 
-    console.log(url)
-    // Add a user agent to avoid being blocked
     const response = await fetch(url, {
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "User-Agent": CONFIG.userAgent,
       },
     })
 
-    // const t = await response.text()
-    // console.log(t)
-
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch data: ${response.status} ${response.statusText}`
-      )
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
 
     return await response.text()
@@ -97,58 +116,69 @@ async function fetchIMDbParentalGuide(imdbId) {
   }
 }
 
+/**
+ * @typedef {Object} ParentalGuideResult
+ * @property {string} mpaaRating
+ * @property {Object.<string, string>} categories
+ */
+
+/**
+ * @param {string} html
+ * @returns {Promise<ParentalGuideResult>}
+ */
 async function parseParentalGuide(html) {
   const $ = cheerio.load(html)
-  // const $ = await fetchIMDbParentalGuide("tt0111161")
-  let result = {
+  const result = {
     mpaaRating: "",
     categories: {},
   }
 
-  // Extract MPAA rating
-  const mpaaRating = $(".ipc-metadata-list__item")
-    .first()
-    .find(".ipc-html-content-inner-div")
-    .text()
-    .trim()
-  result.mpaaRating = mpaaRating
-
-  console.log(result)
-  // Extract category ratings
-  $('[data-testid="rating-item"]').each((index, element) => {
-    const category = $(element)
-      .find(".ipc-metadata-list-item__label")
+  try {
+    result.mpaaRating = $(".ipc-metadata-list__item")
+      .first()
+      .find(".ipc-html-content-inner-div")
       .text()
-      .trim()
-    const rating = $(element).find(".ipc-html-content-inner-div").text().trim()
+      .trim() || "Not Rated"
 
-    console.log(rating)
-    // Remove the colon at the end of category names
-    const cleanCategory = category.replace(":", "")
+    $('[data-testid="rating-item"]').each((_, element) => {
+      const category = $(element)
+        .find(".ipc-metadata-list-item__label")
+        .text()
+        .trim()
+        .replace(":", "")
+      
+      const rating = $(element)
+        .find(".ipc-html-content-inner-div")
+        .text()
+        .trim()
 
-    result.categories[cleanCategory] = rating
-  })
+      if (category && rating) {
+        result.categories[category] = rating
+      }
+    })
 
-  return result
+    return result
+  } catch (error) {
+    console.error("Error parsing parental guide:", error)
+    throw error
+  }
 }
 
 function formatParentalGuideInfo(result) {
-  let description = []
-  const colors = { None: "⚪️", Mild: "🟢", Moderate: "🟡", Severe: "🔴" }
+  const description = []
 
   if (result.mpaaRating) {
     description.push(`${result.mpaaRating}`)
   }
 
-  let rating
-  for (let category in result.categories) {
-    rating = result.categories[category]
-    description.push(`${colors[rating]} ${category}: ${rating}`)
-  }
+  Object.entries(result.categories).forEach(([category, rating]) => {
+    const indicator = SEVERITY_INDICATORS[rating] || "❓"
+    description.push(`${indicator} ${category}: ${rating}`)
+  })
 
   return description.join("\n")
 }
 
-app.listen(3000, "0.0.0.0", () => {
-  console.log("Addon running on port 3000")
+app.listen(CONFIG.port, CONFIG.host, () => {
+  console.log(`Addon running on port ${CONFIG.port}`)
 })
