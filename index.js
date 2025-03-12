@@ -1,7 +1,33 @@
 const express = require("express")
 const rateLimit = require('express-rate-limit')
+require('dotenv').config()
+const { createClient } = require('@supabase/supabase-js')
 const app = express()
 const cheerio = require("cheerio")
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY)
+
+const RATING_MAP = {
+  None: 0,
+  Mild: 1,
+  Moderate: 2,
+  Severe: 3,
+}
+
+const RATING_REVERSE_MAP = {
+  0: "None",
+  1: "Mild",
+  2: "Moderate",
+  3: "Severe",
+}
+
+function toRatingNumber(rating) {
+  return RATING_MAP[rating] ?? 0 // Default to "None" if unknown
+}
+
+function toRatingString(ratingNumber) {
+  return RATING_REVERSE_MAP[ratingNumber] ?? "None" // Default to "None" if unknown
+}
 
 /** @type {Object.<string, string>} */
 const SEVERITY_INDICATORS = {
@@ -66,21 +92,65 @@ app.get("/stream/:type/:id.json", async (req, res) => {
       return res.status(400).json({ error: "Invalid IMDB ID format" })
     }
 
+    // Check Supabase first
+    const { data: cachedData, error: cacheError } = await supabase
+      .from('guides')
+      .select('*')
+      .eq('imdb_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (cachedData && !cacheError) {
+      console.log(`Returning cached data for ${id}`)
+      const description = formatParentalGuideInfo({
+        mpaaRating: cachedData.mpaa_rating,
+        categories: {
+          'Sex & Nudity': toRatingString(cachedData.sex_and_nudity),
+          'Violence & Gore': toRatingString(cachedData.violence_gore),
+          'Profanity': toRatingString(cachedData.profanity),
+          'Alcohol, Drugs & Smoking': toRatingString(cachedData.alcohol_drugs_smoking),
+          'Frightening & Intense Scenes': toRatingString(cachedData.frightening_intense_scenes),
+        },
+      })
+      console.log('returning')
+      return res.json({ streams: [{
+        name: "Family Night",
+        title: description,
+        externalUrl: `https://www.imdb.com/title/${id}/parentalguide`,
+      }]})
+    }
+
+    console.log('not really returning')
+    // If not in Supabase, fetch from IMDb
+    console.log("fetchin from imdb")
     const html = await fetchIMDbParentalGuide(id)
     if (!html) {
       return res.status(404).json({ error: "Failed to fetch parental guide" })
     }
 
     const result = await parseParentalGuide(html)
-    const description = await formatParentalGuideInfo(result)
-    
-    const streams = [{
+    const description = formatParentalGuideInfo(result)
+
+    // Insert into Supabase
+    console.log('inserting into supabase...')
+    await supabase
+      .from('guides')
+      .insert([{
+        imdb_id: id,
+        mpaa_rating: result.mpaaRating,
+        sex_and_nudity: toRatingNumber(result.categories['Sex & Nudity']),
+        violence_gore: toRatingNumber(result.categories['Violence & Gore']),
+        profanity: toRatingNumber(result.categories['Profanity']),
+        alcohol_drugs_smoking: toRatingNumber(result.categories['Alcohol, Drugs & Smoking']),
+        frightening_intense_scenes: toRatingNumber(result.categories['Frightening & Intense Scenes']),
+      }])
+
+    res.json({ streams: [{
       name: "Family Night",
       title: description,
       externalUrl: `https://www.imdb.com/title/${id}/parentalguide`,
-    }]
-
-    res.json({ streams })
+    }]})
   } catch (error) {
     console.error("Error processing stream request:", error)
     res.status(500).json({ error: "Internal server error" })
