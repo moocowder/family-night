@@ -1,11 +1,14 @@
 const express = require("express")
-const rateLimit = require('express-rate-limit')
-require('dotenv').config()
-const { createClient } = require('@supabase/supabase-js')
+const rateLimit = require("express-rate-limit")
+require("dotenv").config()
+const { createClient } = require("@supabase/supabase-js")
 const app = express()
 const cheerio = require("cheerio")
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY)
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+)
 
 const RATING_MAP = {
   None: 0,
@@ -34,19 +37,20 @@ const SEVERITY_INDICATORS = {
   None: "⚪️",
   Mild: "🟢",
   Moderate: "🟡",
-  Severe: "🔴"
+  Severe: "🔴",
 }
 
 const CONFIG = {
   port: process.env.PORT || 3000,
   host: process.env.HOST || "0.0.0.0",
-  userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+  userAgent:
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
 }
 
 // Rate limiting middleware
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 100, // limit each IP to 100 requests per windowMs
 })
 
 app.use(limiter)
@@ -65,16 +69,17 @@ app.use((req, res, next) => {
 })
 
 app.get("/manifest.json", (req, res) => {
-  console.log("******")
+  console.log("manifest requested.")
   try {
     const manifest = {
       id: "com.moocowder.family-night",
-      version: "2.0.0",
+      version: "1.0.0",
       name: "Family Night",
-      description: "A test add-on for learning",
+      description: "Ratings based on imdb parental guide",
       resources: ["stream"],
-      types: ["movie", "series"],
+      types: ["movie"],
       idPrefixes: ["tt"],
+      logo: "https://jffuqqdjizobqobzphcc.supabase.co/storage/v1/object/public/pics//fn.png",
     }
     res.json(manifest)
   } catch (error) {
@@ -86,18 +91,18 @@ app.get("/manifest.json", (req, res) => {
 app.get("/stream/:type/:id.json", async (req, res) => {
   try {
     const { type, id } = req.params
-    
+
     // Validate IMDB ID format
-    if (!id.startsWith('tt') || id.length < 3) {
+    if (!id.startsWith("tt") || id.length < 3) {
       return res.status(400).json({ error: "Invalid IMDB ID format" })
     }
 
     // Check Supabase first
     const { data: cachedData, error: cacheError } = await supabase
-      .from('guides')
-      .select('*')
-      .eq('imdb_id', id)
-      .order('created_at', { ascending: false })
+      .from("guides")
+      .select("*")
+      .eq("imdb_id", id)
+      .order("created_at", { ascending: false })
       .limit(1)
       .single()
 
@@ -106,22 +111,29 @@ app.get("/stream/:type/:id.json", async (req, res) => {
       const description = formatParentalGuideInfo({
         mpaaRating: cachedData.mpaa_rating,
         categories: {
-          'Sex & Nudity': toRatingString(cachedData.sex_and_nudity),
-          'Violence & Gore': toRatingString(cachedData.violence_gore),
-          'Profanity': toRatingString(cachedData.profanity),
-          'Alcohol, Drugs & Smoking': toRatingString(cachedData.alcohol_drugs_smoking),
-          'Frightening & Intense Scenes': toRatingString(cachedData.frightening_intense_scenes),
+          "Sex & Nudity": toRatingString(cachedData.sex_and_nudity),
+          "Violence & Gore": toRatingString(cachedData.violence_gore),
+          Profanity: toRatingString(cachedData.profanity),
+          "Alcohol, Drugs & Smoking": toRatingString(
+            cachedData.alcohol_drugs_smoking
+          ),
+          "Frightening & Intense Scenes": toRatingString(
+            cachedData.frightening_intense_scenes
+          ),
         },
       })
-      console.log('returning')
-      return res.json({ streams: [{
-        name: "Family Night",
-        title: description,
-        externalUrl: `https://www.imdb.com/title/${id}/parentalguide`,
-      }]})
+      console.log("returning")
+      return res.json({
+        streams: [
+          {
+            name: "Family Night",
+            title: description,
+            externalUrl: `https://www.imdb.com/title/${id}/parentalguide`,
+          },
+        ],
+      })
     }
 
-    console.log('not really returning')
     // If not in Supabase, fetch from IMDb
     console.log("fetchin from imdb")
     const html = await fetchIMDbParentalGuide(id)
@@ -133,35 +145,35 @@ app.get("/stream/:type/:id.json", async (req, res) => {
     const description = formatParentalGuideInfo(result)
 
     // Insert into Supabase
-    console.log('inserting into supabase...')
-    await supabase
-      .from('guides')
-      .insert([{
+    await supabase.from("guides").insert([
+      {
         imdb_id: id,
         mpaa_rating: result.mpaaRating,
-        sex_and_nudity: toRatingNumber(result.categories['Sex & Nudity']),
-        violence_gore: toRatingNumber(result.categories['Violence & Gore']),
-        profanity: toRatingNumber(result.categories['Profanity']),
-        alcohol_drugs_smoking: toRatingNumber(result.categories['Alcohol, Drugs & Smoking']),
-        frightening_intense_scenes: toRatingNumber(result.categories['Frightening & Intense Scenes']),
-      }])
+        sex_and_nudity: toRatingNumber(result.categories["Sex & Nudity"]),
+        violence_gore: toRatingNumber(result.categories["Violence & Gore"]),
+        profanity: toRatingNumber(result.categories["Profanity"]),
+        alcohol_drugs_smoking: toRatingNumber(
+          result.categories["Alcohol, Drugs & Smoking"]
+        ),
+        frightening_intense_scenes: toRatingNumber(
+          result.categories["Frightening & Intense Scenes"]
+        ),
+      },
+    ])
 
-    res.json({ streams: [{
-      name: "Family Night",
-      title: description,
-      externalUrl: `https://www.imdb.com/title/${id}/parentalguide`,
-    }]})
+    res.json({
+      streams: [
+        {
+          name: "Family Night",
+          title: description,
+          externalUrl: `https://www.imdb.com/title/${id}/parentalguide`,
+        },
+      ],
+    })
   } catch (error) {
     console.error("Error processing stream request:", error)
     res.status(500).json({ error: "Internal server error" })
   }
-})
-
-app.get("/test", async (req, res) => {
-  const html = await fetchIMDbParentalGuide("tt0111161")
-  const result = await parseParentalGuide(html)
-  const description = await formatParentalGuideInfo(result)
-  res.send(description)
 })
 
 async function fetchIMDbParentalGuide(imdbId) {
@@ -204,11 +216,12 @@ async function parseParentalGuide(html) {
   }
 
   try {
-    result.mpaaRating = $(".ipc-metadata-list__item")
-      .first()
-      .find(".ipc-html-content-inner-div")
-      .text()
-      .trim() || "Not Rated"
+    result.mpaaRating =
+      $(".ipc-metadata-list__item")
+        .first()
+        .find(".ipc-html-content-inner-div")
+        .text()
+        .trim() || "Not Rated"
 
     $('[data-testid="rating-item"]').each((_, element) => {
       const category = $(element)
@@ -216,7 +229,7 @@ async function parseParentalGuide(html) {
         .text()
         .trim()
         .replace(":", "")
-      
+
       const rating = $(element)
         .find(".ipc-html-content-inner-div")
         .text()
