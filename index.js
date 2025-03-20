@@ -25,11 +25,11 @@ const RATING_REVERSE_MAP = {
 }
 
 function toRatingNumber(rating) {
-  return RATING_MAP[rating] ?? 0 // Default to "None" if unknown
+  return RATING_MAP[rating] ?? null
 }
 
 function toRatingString(ratingNumber) {
-  return RATING_REVERSE_MAP[ratingNumber] ?? "None" // Default to "None" if unknown
+  return RATING_REVERSE_MAP[ratingNumber] ?? null
 }
 
 /** @type {Object.<string, string>} */
@@ -70,6 +70,7 @@ app.use((req, res, next) => {
 
 app.get("/manifest.json", (req, res) => {
   console.log("manifest requested.")
+
   try {
     const manifest = {
       id: "com.moocowder.family-night",
@@ -144,23 +145,26 @@ app.get("/stream/:type/:id.json", async (req, res) => {
     const result = await parseParentalGuide(html)
     const description = formatParentalGuideInfo(result)
 
-    // Insert into Supabase
-    await supabase.from("guides").insert([
-      {
-        imdb_id: id,
-        mpaa_rating: result.mpaaRating,
-        sex_and_nudity: toRatingNumber(result.categories["Sex & Nudity"]),
-        violence_gore: toRatingNumber(result.categories["Violence & Gore"]),
-        profanity: toRatingNumber(result.categories["Profanity"]),
-        alcohol_drugs_smoking: toRatingNumber(
-          result.categories["Alcohol, Drugs & Smoking"]
-        ),
-        frightening_intense_scenes: toRatingNumber(
-          result.categories["Frightening & Intense Scenes"]
-        ),
-      },
-    ])
+    //cache entry only if all 5 categories exist already
+    if (Object.keys(result.categories).length === 5) {
+      await supabase.from("guides").insert([
+        {
+          imdb_id: id,
+          mpaa_rating: result.mpaaRating,
+          sex_and_nudity: toRatingNumber(result.categories["Sex & Nudity"]),
+          violence_gore: toRatingNumber(result.categories["Violence & Gore"]),
+          profanity: toRatingNumber(result.categories["Profanity"]),
+          alcohol_drugs_smoking: toRatingNumber(
+            result.categories["Alcohol, Drugs & Smoking"]
+          ),
+          frightening_intense_scenes: toRatingNumber(
+            result.categories["Frightening & Intense Scenes"]
+          ),
+        },
+      ])
+    }
 
+    // Insert into Supabase
     res.json({
       streams: [
         {
@@ -216,13 +220,19 @@ async function parseParentalGuide(html) {
   }
 
   try {
-    result.mpaaRating =
-      $(".ipc-metadata-list__item")
-        .first()
+    // Use a more specific selector if possible
+    const mpaElement = $(
+      ".ipc-metadata-list__item:contains('Motion Picture Rating (MPA)')"
+    ).first()
+
+    if (mpaElement.length) {
+      result.mpaaRating = mpaElement
         .find(".ipc-html-content-inner-div")
         .text()
-        .trim() || "Not Rated"
+        .trim()
+    }
 
+    // Parse category ratings
     $('[data-testid="rating-item"]').each((_, element) => {
       const category = $(element)
         .find(".ipc-metadata-list-item__label")
